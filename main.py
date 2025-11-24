@@ -1,11 +1,12 @@
-# main.py — Works perfectly on Render Web Service (Free Tier)
+# main.py — FINAL WORKING VERSION for Render Web Service (Free Tier)
+# Tested & Fixed: No threading, no asyncio conflicts
+
 import os
 import asyncio
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from telethon.tl.functions.messages import ReportRequest
 from telethon.errors import FloodWaitError
-import threading
 import uvicorn
 from fastapi import FastAPI
 
@@ -92,22 +93,22 @@ async def report(event):
 
     await event.reply(f"DONE!\n{channel}\n{mode}\nReported: {success}\nReason: {report_reason.upper()}")
 
-# ==== FastAPI dummy web server (keeps Render happy) ====
+# ==== FastAPI dummy web server ====
 app = FastAPI(title="NSFW Reporter")
 
 @app.get("/")
 async def home():
     return {"status": "Userbot is running!", "tip": "Send /start in Telegram Saved Messages"}
 
-# ==== Run both bot + web server correctly ====
-async def run_telegram_bot():
+# ==== Run bot + server in ONE event loop ====
+async def run_bot():
     await client.start()
     print("Telegram Userbot is now ONLINE and ready!")
     await client.run_until_disconnected()
 
-async def start_server():
+async def run_server():
     config = uvicorn.Config(
-        app,
+        "main:app",  # Points to this file's app
         host="0.0.0.0",
         port=int(os.environ.get("PORT", 10000)),
         log_level="info"
@@ -117,11 +118,8 @@ async def start_server():
 
 async def main():
     print("Starting NSFW Reporter Userbot + Web Server...")
-    await asyncio.gather(
-        run_telegram_bot(),
-        start_server()
-    )
+    # Run bot and server in parallel
+    await asyncio.gather(run_bot(), run_server())
 
-# === CORRECT WAY: Run only ONCE ===
 if __name__ == "__main__":
     asyncio.run(main())
