@@ -1,10 +1,14 @@
-# main.py — Permanent Telegram Reporting Userbot
+# main.py — Telegram Userbot as Web Service (with dummy HTTP endpoint)
 import os
 import asyncio
+import threading
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from telethon.tl.functions.messages import ReportRequest
 from telethon.errors import FloodWaitError
+import http.server
+import socketserver
+from urllib.parse import urlparse, parse_qs
 
 # ==== YOUR CREDENTIALS (from Render Environment Variables) ====
 API_ID = int(os.environ["API_ID"])
@@ -21,12 +25,7 @@ reason_map = {
     "8": "personal_details", "9": "other"
 }
 
-# ==== COMMANDS YOU WILL USE ====
-# /start → shows help
-# /setreason 3 → changes reason (3 = pornography)
-/report @channel 50 → reports last 50 posts
-# /report @channel 12345 12400 → reports range
-
+# ==== COMMANDS (same as before) ====
 @client.on(events.NewMessage(outgoing=True, pattern=r"/start"))
 async def start(event):
     await event.reply(
@@ -104,12 +103,29 @@ async def report_command(event):
              f"Success: {success} | Failed: {failed}"
     await event.reply(result)
 
-# ==== Start the userbot ====
-async def main():
-    print("Userbot starting...")
-    await client.start()
-    print("Userbot is ONLINE! Send /start in your Saved Messages to test.")
-    await client.run_until_disconnected()
+# ==== HTTP SERVER FOR RENDER WEB SERVICE (dummy endpoint) ====
+class Handler(http.server.SimpleHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b'Telegram Userbot is running!')
 
-with client:
-    client.loop.run_until_complete(main())
+# ==== START BOT IN THREAD + HTTP SERVER ====
+def run_bot():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(client.start())
+    print("Userbot is ONLINE! Send /start in your Saved Messages to test.")
+    loop.run_until_complete(client.run_until_disconnected())
+
+if __name__ == '__main__':
+    # Start bot in background thread
+    bot_thread = threading.Thread(target=run_bot, daemon=True)
+    bot_thread.start()
+
+    # Start HTTP server on Render's port
+    PORT = int(os.environ.get('PORT', 10000))
+    with socketserver.TCPServer(("", PORT), Handler) as httpd:
+        print(f"Web Service listening on port {PORT} (dummy endpoint)")
+        httpd.serve_forever()
