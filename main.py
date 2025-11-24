@@ -99,18 +99,29 @@ app = FastAPI(title="NSFW Reporter")
 async def home():
     return {"status": "Userbot is running!", "tip": "Send /start in Telegram Saved Messages"}
 
-# ==== Run both bot + web server in the same async loop ====
+# ==== Run both bot + web server correctly ====
 async def run_telegram_bot():
     await client.start()
     print("Telegram Userbot is now ONLINE and ready!")
     await client.run_until_disconnected()
 
+async def start_server():
+    config = uvicorn.Config(
+        app,
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 10000)),
+        log_level="info"
+    )
+    server = uvicorn.Server(config)
+    await server.serve()
+
 async def main():
-    # Run both in parallel
+    print("Starting NSFW Reporter Userbot + Web Server...")
     await asyncio.gather(
         run_telegram_bot(),
-        uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+        start_server()
     )
 
+# === CORRECT WAY: Run only ONCE ===
 if __name__ == "__main__":
     asyncio.run(main())
